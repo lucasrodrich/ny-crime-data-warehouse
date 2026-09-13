@@ -20,7 +20,7 @@ Diseñar e implementar un **Data Warehouse** para el análisis de delitos del Es
    - Modelo dimensional completo
    - Procesos ETL documentados
 
-2. **README_CRIMES_NY_DW.md** (10 KB)
+2. **README.md** (10 KB)
    - Guía de instalación y uso
    - Ejemplos de consultas SQL
    - Integración con Power BI
