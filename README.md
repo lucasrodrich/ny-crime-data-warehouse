@@ -117,6 +117,12 @@ Cátedra: Gastón Emilio Severina · Julio Gutiérrez
 
 ---
 
+## Estado del dashboard
+
+El dashboard de Power BI (`PBICrimes.pbix`) existe pero está temporalmente removido del repositorio (sigue disponible en el historial de git). Su modelo importa directo de `fact_crimes_ny` sin pasar por las vistas SQL, por lo que no aplica el mismo filtro de corrección de doble conteo por rollups `"County Total"` que ya tienen las 13 vistas de `vistas_crimes_ny.sql` (ver "Limitaciones de los datos, declaradas"): el KPI "Total Crimes" muestra ~59M en vez de los ~19,8M reales para 1990–2024. Se va a volver a subir una vez corregido.
+
+---
+
 ## Reproducir el proyecto
 
 <details>
