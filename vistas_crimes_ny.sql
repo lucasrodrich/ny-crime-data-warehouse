@@ -12,38 +12,52 @@
 USE crimes_ny_dw;
 
 -- ============================================================================
+-- NOTA SOBRE DOBLE CONTEO: el CSV de origen trae, para cada condado y año,
+-- una fila de agencia = "County Total" (agregado del condado) ADEMÁS de una
+-- fila por cada agencia individual que opera en ese condado. Sumar sobre
+-- todas las filas sin distinguir duplica cada delito en cualquier agregado
+-- geográfico o estatal (factor de inflación medido ≈1,49x). Por eso, toda
+-- vista que agregue por condado/región/estado filtra exclusivamente
+-- a.agency_name = 'County Total'; v_top_agencias hace lo opuesto (excluye
+-- los rollups) porque su unidad de análisis es la agencia individual.
+-- ============================================================================
+
+-- ============================================================================
 -- VISTA 1: KPI GLOBALES (Para tarjetas principales del dashboard)
 -- ============================================================================
 
 CREATE OR REPLACE VIEW v_kpi_globales AS
-SELECT 
+SELECT
     SUM(CASE WHEN f.category_id = 3 THEN f.total_delitos ELSE 0 END) AS total_delitos_reportados,
     SUM(CASE WHEN f.category_id = 3 THEN f.total_violentos ELSE 0 END) AS total_delitos_violentos,
     SUM(CASE WHEN f.category_id = 3 THEN f.total_propiedad ELSE 0 END) AS total_delitos_propiedad,
-    
+
     ROUND(
-        SUM(CASE WHEN f.category_id = 3 THEN f.total_violentos ELSE 0 END) / 
-        NULLIF(SUM(CASE WHEN f.category_id = 3 THEN f.total_delitos ELSE 0 END), 0) * 100, 
+        SUM(CASE WHEN f.category_id = 3 THEN f.total_violentos ELSE 0 END) /
+        NULLIF(SUM(CASE WHEN f.category_id = 3 THEN f.total_delitos ELSE 0 END), 0) * 100,
         2
     ) AS tasa_violentos_pct,
-    
+
     ROUND(
-        SUM(CASE WHEN f.category_id = 3 THEN f.total_propiedad ELSE 0 END) / 
-        NULLIF(SUM(CASE WHEN f.category_id = 3 THEN f.total_delitos ELSE 0 END), 0) * 100, 
+        SUM(CASE WHEN f.category_id = 3 THEN f.total_propiedad ELSE 0 END) /
+        NULLIF(SUM(CASE WHEN f.category_id = 3 THEN f.total_delitos ELSE 0 END), 0) * 100,
         2
     ) AS tasa_propiedad_pct,
-    
+
     COUNT(DISTINCT t.year) AS total_años_registrados,
     COUNT(DISTINCT g.county_name) AS total_condados,
-    COUNT(DISTINCT a.agency_name) AS total_agencias,
-    
+    -- Subquery independiente del filtro de rollup de arriba: cuenta agencias
+    -- policiales reales (excluye las 62 filas "County Total" de dim_agencia).
+    (SELECT COUNT(*) FROM dim_agencia WHERE agency_name <> 'County Total') AS total_agencias,
+
     MIN(t.year) AS año_inicio,
     MAX(t.year) AS año_fin
-    
+
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
 JOIN dim_geografia g ON f.geo_id = g.geo_id
-JOIN dim_agencia a ON f.agency_id = a.agency_id;
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total';
 
 -- ============================================================================
 -- VISTA 2: EVOLUCIÓN ANUAL (Para gráfico de líneas temporal)
@@ -65,9 +79,11 @@ SELECT
     SUM(CASE WHEN f.category_id = 3 THEN f.burglary ELSE 0 END) AS allanamientos,
     SUM(CASE WHEN f.category_id = 3 THEN f.larceny ELSE 0 END) AS hurtos,
     SUM(CASE WHEN f.category_id = 3 THEN f.motor_vehicle_theft ELSE 0 END) AS robo_vehiculos
-    
+
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total'
 GROUP BY t.year, t.decada, t.periodo_decade
 ORDER BY t.year;
 
@@ -93,7 +109,9 @@ SELECT
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
 JOIN dim_geografia g ON f.geo_id = g.geo_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
 WHERE f.category_id = 3
+  AND a.agency_name = 'County Total'
 GROUP BY t.decada, t.periodo_decade
 ORDER BY t.decada;
 
@@ -120,6 +138,8 @@ SELECT
     
 FROM fact_crimes_ny f
 JOIN dim_geografia g ON f.geo_id = g.geo_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total'
 GROUP BY g.county_name, g.region_type, g.is_nyc, g.crime_tendency
 ORDER BY total_delitos DESC;
 
@@ -158,6 +178,8 @@ SELECT
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
 JOIN dim_geografia g ON f.geo_id = g.geo_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total'
 GROUP BY t.year, t.decada
 ORDER BY t.year;
 
@@ -203,6 +225,8 @@ SELECT
     
 FROM fact_crimes_ny f
 JOIN dim_geografia g ON f.geo_id = g.geo_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total'
 GROUP BY g.county_name, g.region_type, g.is_nyc, g.crime_tendency
 ORDER BY total_delitos DESC;
 
@@ -226,10 +250,13 @@ SELECT
     COUNT(DISTINCT t.year) AS años_reportando,
     
     RANK() OVER (ORDER BY SUM(CASE WHEN f.category_id = 3 THEN f.total_delitos ELSE 0 END) DESC) AS ranking
-    
+
 FROM fact_crimes_ny f
 JOIN dim_agencia a ON f.agency_id = a.agency_id
 JOIN dim_tiempo t ON f.time_id = t.time_id
+-- Excepción a la regla del archivo: esta vista rankea agencias individuales,
+-- así que descarta los rollups "County Total" en vez de quedarse sólo con ellos.
+WHERE a.agency_name <> 'County Total'
 GROUP BY a.agency_name, a.county, a.region, a.agency_type
 ORDER BY total_delitos DESC;
 
@@ -251,7 +278,9 @@ SELECT
     
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
 WHERE f.category_id = 3
+  AND a.agency_name = 'County Total'
 GROUP BY t.lustro, t.periodo_lustro
 ORDER BY t.lustro;
 
@@ -273,7 +302,9 @@ SELECT
     
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
 WHERE f.category_id = 3
+  AND a.agency_name = 'County Total'
 GROUP BY t.bianual
 ORDER BY t.bianual;
 
@@ -290,18 +321,22 @@ WITH primeros_5_años AS (
     FROM fact_crimes_ny f
     JOIN dim_geografia g ON f.geo_id = g.geo_id
     JOIN dim_tiempo t ON f.time_id = t.time_id
+    JOIN dim_agencia a ON f.agency_id = a.agency_id
     WHERE t.year BETWEEN 1990 AND 1994
+      AND a.agency_name = 'County Total'
     GROUP BY g.county_name, g.region_type
 ),
 ultimos_5_años AS (
-    SELECT 
+    SELECT
         g.county_name,
         g.region_type,
         AVG(CASE WHEN f.category_id = 3 THEN f.total_violentos ELSE 0 END) AS promedio_violentos_final
     FROM fact_crimes_ny f
     JOIN dim_geografia g ON f.geo_id = g.geo_id
     JOIN dim_tiempo t ON f.time_id = t.time_id
+    JOIN dim_agencia a ON f.agency_id = a.agency_id
     WHERE t.year BETWEEN 2020 AND 2024
+      AND a.agency_name = 'County Total'
     GROUP BY g.county_name, g.region_type
 )
 SELECT 
@@ -337,9 +372,11 @@ WITH delitos_anuales AS (
         SUM(CASE WHEN f.category_id = 3 THEN f.total_propiedad ELSE 0 END) AS propiedad_año
     FROM fact_crimes_ny f
     JOIN dim_tiempo t ON f.time_id = t.time_id
+    JOIN dim_agencia a ON f.agency_id = a.agency_id
+    WHERE a.agency_name = 'County Total'
     GROUP BY t.year
 )
-SELECT 
+SELECT
     year AS año,
     total_año AS total_delitos,
     violentos_año AS delitos_violentos,
@@ -394,6 +431,8 @@ SELECT
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
 JOIN dim_geografia g ON f.geo_id = g.geo_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total'
 GROUP BY t.decada, t.periodo_decade, CASE WHEN g.is_nyc THEN 'NYC' ELSE 'Non-NYC' END
 ORDER BY t.decada, region;
 
@@ -430,6 +469,8 @@ SELECT
     
 FROM fact_crimes_ny f
 JOIN dim_tiempo t ON f.time_id = t.time_id
+JOIN dim_agencia a ON f.agency_id = a.agency_id
+WHERE a.agency_name = 'County Total'
 GROUP BY t.year
 ORDER BY t.year;
 

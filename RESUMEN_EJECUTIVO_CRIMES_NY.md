@@ -36,7 +36,8 @@ Diseñar e implementar un **Data Warehouse** para el análisis de delitos del Es
 
 4. **vistas_crimes_ny.sql** (20 KB)
    - 13 vistas analíticas optimizadas
-   - Responden a las 12 preguntas de negocio
+   - Responden a las 11 preguntas de negocio (una pregunta original sobre variación mensual quedó fuera de alcance: `dim_tiempo` tiene granularidad anual)
+   - Filtran los rollups "County Total" en los agregados geográficos/estatales para evitar doble conteo (ver nota más abajo)
    - Listas para Power BI/Tableau
 
 ### 🐍 Script Python ETL
@@ -77,12 +78,14 @@ FACT TABLE: fact_crimes_ny (~71,490 registros)
 |-----------|-----------|-------------|
 | **dim_tiempo** | 35 | Años 1990-2024 con múltiples granularidades |
 | **dim_geografia** | 62 | Condados de NY (5 NYC + 57 no-NYC) |
-| **dim_agencia** | 843 | Agencias policiales del estado |
+| **dim_agencia** | 884 | Agencias policiales del estado (822 individuales + 62 rollups "County Total", uno por condado) |
 | **dim_categoria** | 3 | Violent, Property, Mixed |
+
+> **Nota sobre doble conteo:** el CSV de origen trae, para cada condado y año, una fila de agencia = "County Total" (agregado del condado) además de una fila por cada agencia individual. Las 13 vistas de `vistas_crimes_ny.sql` filtran `agency_name = 'County Total'` en cualquier agregado por condado, región o estado, y usan solo las agencias individuales (`agency_name <> 'County Total'`) en `v_top_agencias`. Sumar sin este filtro infla cada agregado geográfico/estatal en ~1,49x.
 
 ---
 
-## 🎯 12 PREGUNTAS DE NEGOCIO RESUELTAS
+## 🎯 11 PREGUNTAS DE NEGOCIO RESUELTAS
 
 | # | Pregunta | Vista SQL |
 |---|----------|-----------|
@@ -97,7 +100,8 @@ FACT TABLE: fact_crimes_ny (~71,490 registros)
 | 9 | Evolución ratio por década NYC/noNYC | `v_proporcion_por_decada_region` |
 | 10 | Ranking agencias | `v_top_agencias` |
 | 11 | Incremento delitos específicos | `v_ranking_delitos_especificos` |
-| 12 | Variación mensual | `fact_crimes_ny.months_reported` |
+
+> Una pregunta original sobre variación mensual de delitos quedó fuera de alcance: `dim_tiempo` tiene granularidad anual, no mensual.
 
 ---
 
@@ -112,7 +116,7 @@ FACT TABLE: fact_crimes_ny (~71,490 registros)
 - ✅ **Tasa de propiedad** (% propiedad / total)
 - ✅ **35 años** de datos históricos
 - ✅ **62 condados** analizados
-- ✅ **843 agencias** reportando
+- ✅ **884 agencias** reportando (822 individuales + 62 rollups "County Total")
 
 ---
 
@@ -135,7 +139,7 @@ FACT TABLE: fact_crimes_ny (~71,490 registros)
 3. CARGA
    ├─ dim_tiempo (35 registros)
    ├─ dim_geografia (62 registros)
-   ├─ dim_agencia (843 registros)
+   ├─ dim_agencia (884 registros: 822 individuales + 62 rollups "County Total")
    ├─ dim_categoria (3 registros)
    ├─ fact_crimes_ny (~71,490 registros)
    └─ crimes_raw (23,830 registros)
@@ -152,7 +156,7 @@ FACT TABLE: fact_crimes_ny (~71,490 registros)
 ## 🎓 METODOLOGÍA HEFESTO - 4 PASOS
 
 ### ✅ Paso 1: Análisis de Requerimientos
-- Identificación de 12 preguntas clave de negocio
+- Identificación de 11 preguntas clave de negocio
 - Definición de 7 indicadores principales
 - Identificación de 4 perspectivas/dimensiones
 - Modelo conceptual inicial
@@ -232,7 +236,7 @@ mysql -u root -p crimes_ny_dw < vistas_crimes_ny.sql
 | Registros CSV originales | 23,830 |
 | Registros en fact_crimes_ny | ~71,490 |
 | Condados únicos | 62 |
-| Agencias policiales | 843 |
+| Agencias policiales | 884 (822 individuales + 62 rollups) |
 | Años de histórico | 35 (1990-2024) |
 | Vistas analíticas | 13 |
 | Líneas de código Python | 400+ |
@@ -308,7 +312,7 @@ SELECT * FROM v_kpi_globales;
 ### Académicos:
 - ✅ Aplicación rigurosa de metodología HEFESTO
 - ✅ Replicación exitosa de estructura de proyecto COVID
-- ✅ Respuesta completa a 12 preguntas de negocio
+- ✅ Respuesta completa a 11 preguntas de negocio
 - ✅ Integración de teoría y práctica
 
 ### De Negocio:
@@ -352,7 +356,7 @@ El proyecto demuestra la **aplicación exitosa de la metodología HEFESTO** en e
 
 1. **Diseño dimensional sólido**: Esquema en estrella con 4 dimensiones y 1 tabla de hechos
 2. **ETL robusto**: Proceso automatizado con validaciones de calidad
-3. **Respuestas de negocio**: 12 preguntas respondidas con vistas SQL optimizadas
+3. **Respuestas de negocio**: 11 preguntas respondidas con vistas SQL optimizadas (filtrando rollups "County Total" para evitar doble conteo)
 4. **Escalabilidad**: Arquitectura preparada para crecimiento futuro
 5. **Documentación completa**: Todos los pasos metodológicos documentados
 

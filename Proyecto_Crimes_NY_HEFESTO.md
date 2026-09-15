@@ -30,7 +30,8 @@ Sardoy, Blas 2318896
 9. ¿Cómo evoluciona la proporción delito violento/propiedad por década en NYC vs noNYC?
 10. ¿Cuáles son las agencias policiales con mayor índice de delitos reportados?
 11. ¿Qué tipos específicos de delitos (murder, rape, robbery, etc.) muestran mayor incremento por año?
-12. ¿Cuál es la variación mensual de delitos en las agencias que reportan todos los meses?
+
+> **Fuera de alcance:** una pregunta original sobre variación mensual de delitos fue descartada — `dim_tiempo` tiene granularidad anual (el campo `Months_Reported` del CSV indica cuántos meses cubre el reporte de cada fila, no el mes en que ocurrió cada delito), así que esa pregunta es irrespondible con esta fuente. El modelo final responde 11 preguntas operativas, no 12.
 
 ---
 
@@ -215,7 +216,7 @@ Sardoy, Blas 2318896
 #### **PERSPECTIVA "AGENCIA POLICIAL":**
 
 **Datos disponibles:**
-- **Agency** (campo disponible: Agency) - 843 agencias únicas
+- **Agency** (campo disponible: Agency) - 884 valores únicos de (Agency, County): 822 agencias individuales + 62 filas de rollup "County Total" (una por condado, usadas para los agregados geográficos)
 - **County** (relación con condado)
 - **Region** (NYC o Non-NYC)
 
@@ -276,7 +277,7 @@ Sardoy, Blas 2318896
 - **Latitude / Longitude** (agregado externo opcional para mapas)
 
 #### **PERSPECTIVA 3 - AGENCIA POLICIAL:**
-- **Agency** (843 agencias únicas)
+- **Agency** (884 filas en dim_agencia: 822 agencias individuales + 62 rollups "County Total")
 - **County** (relación con condado)
 - **Region** (NYC o Non-NYC)
 - **Agency_Type** (City PD, County Sheriff, State Police, etc.)
@@ -771,7 +772,9 @@ GROUP BY agency_type
 ORDER BY total_agencias DESC;
 ```
 
-**Resultado esperado:** 843 agencias únicas
+**Resultado esperado:** 884 agencias únicas (822 individuales + 62 rollups "County Total", uno por condado — ver nota de doble conteo más abajo)
+
+> **Nota sobre doble conteo:** el CSV de origen trae, para cada condado y año, una fila de agencia = "County Total" (el agregado del condado) además de una fila por cada agencia individual que opera ahí. Cualquier vista o consulta que sume `Index Total` sobre todas las filas de `fact_crimes_ny` sin distinguir el rollup cuenta cada delito dos veces (factor de inflación medido ≈1,49x: 29,5 millones "ingenuos" vs. 19,8 millones reales para 1990-2024). Las 13 vistas de `vistas_crimes_ny.sql` filtran `agency_name = 'County Total'` para cualquier agregado geográfico o estatal, y usan exclusivamente las agencias individuales (excluyendo el rollup) en `v_top_agencias`, que rankea agencias.
 
 ---
 
@@ -1392,7 +1395,7 @@ La aplicación de la **metodología HEFESTO** en el contexto del análisis crimi
 
 ### **Respuestas a preguntas de negocio:**
 
-El DW diseñado permite responder efectivamente a las 12 preguntas planteadas en el análisis de requerimientos:
+El DW diseñado permite responder efectivamente a las 11 preguntas operativas planteadas en el análisis de requerimientos (la pregunta original sobre variación mensual quedó fuera de alcance — ver nota en el Paso 1):
 
 - ✅ Diferencias NYC vs no-NYC (dim_geografia.region_type)
 - ✅ Crecimiento por región (fact + dim_tiempo.decada/lustro)
@@ -1405,7 +1408,7 @@ El DW diseñado permite responder efectivamente a las 12 preguntas planteadas en
 - ✅ Evolución ratio por década (combinación dim_tiempo + dim_geografia)
 - ✅ Ranking de agencias (dim_agencia + agregaciones)
 - ✅ Delitos específicos por año (campos murder, rape, robbery, etc.)
-- ✅ Variación mensual (months_reported + análisis temporal)
+- ❌ Variación mensual — fuera de alcance, `dim_tiempo` no tiene granularidad mensual
 
 ### **Valor para el negocio:**
 
