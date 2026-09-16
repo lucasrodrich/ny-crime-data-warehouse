@@ -92,6 +92,18 @@ De los siete tipos de delito relevados, seis cayeron entre 41% y 86% entre 1990 
 
 ---
 
+## Visualizaciones
+
+Las 11 preguntas operativas (ver "La pregunta de negocio"), respondidas con las vistas SQL corregidas:
+
+![P1-P4: NYC vs. resto del estado, crecimiento por región, violento vs. propiedad, década de mayor criminalidad](img/combinado_1.png)
+
+![P5-P8: evolución en lustros, tendencia bianual de propiedad, condados en alza y baja, proporción de propiedad por región](img/combinado_2.png)
+
+![P9-P11: proporción violento/propiedad por década y región, agencias con mayor volumen, tipo de delito que no acompañó la caída](img/combinado_3.png)
+
+---
+
 ## Qué decisión habilita este análisis
 
 Dado que (a) el resto del estado, no NYC, es la región cuya participación en la criminalidad estatal está creciendo, y (b) doce condados identificables muestran una tendencia al alza sostenida en delitos violentos mientras el promedio estatal cae con fuerza, un organismo que asigna presupuesto policial estatal debería dejar de usar la tasa estatal descendente como justificación por defecto para reducir recursos de forma pareja, y en su lugar recalibrar la asignación hacia esos condados específicos usando su propia serie histórica como referencia. El efecto de ese cambio se mediría trimestralmente con la tasa de delitos violentos por condado — idealmente normalizada por población una vez incorporados datos censales — comparada contra la tendencia propia de cada condado, no contra el promedio estatal.
@@ -167,6 +179,7 @@ Si `CRIMES_NY_DB_PASSWORD` no está seteada, el script la solicita interactivame
 | `creacion_tablas_crimes_ny.sql` | DDL del esquema: 7 tablas, índices, datos maestros |
 | `etl_crimes_ny_mysql.py` | ETL completo con validaciones y logging |
 | `vistas_crimes_ny.sql` | 13 vistas analíticas |
+| `img/` | Gráficos de las 11 preguntas de negocio (individuales `01_...`–`11_...` y combinados `combinado_1`–`3` usados en este README) |
 
 </details>
 
