@@ -7,7 +7,8 @@ corrige, y solo avanza al siguiente módulo cuando las respuestas están bien fo
 ## Estado
 
 - Mapa del repo: hecho y confirmado.
-- Módulo actual: M2 — Modelado dimensional (siguiente a arrancar).
+- Módulo actual: M2 — Modelado dimensional (teoría y lectura de código dada; faltan responder
+  las 5 preguntas de entrevista, ver sección "M2 — en curso" más abajo).
 
 ## Módulos completados
 
@@ -69,3 +70,55 @@ pendiente de profundizar en M2: es específicamente una metodología de 4 pasos 
 Data Warehouses (análisis de requerimientos → análisis del OLTP → modelo lógico del DW →
 integración de datos) — no un framework genérico de pipelines, y no hay sensores en este
 proyecto (la fuente es un CSV abierto del NYS DCJS).
+
+---
+
+## M2 — en curso (Modelado dimensional)
+
+### Conceptos vistos
+- **Hechos vs. dimensiones:** hecho = evento medible (tabla larga, medidas numéricas, FKs);
+  dimensión = contexto para cortar (tabla chica y ancha, atributos descriptivos).
+- **Estrella vs. 3NF:** estrella acepta redundancia (ej. `region_type` repetido en cada
+  condado) a cambio de menos JOINs. Es un eje distinto al de "formato ancho vs. dimensional".
+- **Grano:** qué representa UNA fila de la fact. Se define primero porque de él dependen
+  medidas y dimensiones. Acá: {Año, Condado, Agencia, Categoría}
+  (`Proyecto_Crimes_NY_HEFESTO.md:245`).
+- **HEFESTO (4 pasos):** requerimientos (`:18`) → análisis OLTP (`:99`) → modelo lógico
+  (`:313`) → integración de datos (`:590`).
+- **Dimensiones:** `dim_tiempo` (`creacion_tablas_crimes_ny.sql:21`), `dim_geografia` (`:45`),
+  `dim_agencia` (`:66`), `dim_categoria` (`:85`); fact en `:113-160`.
+- **Fórmulas de granularidad temporal:** `FLOOR(Year/N)*N` devuelve el primer año del bloque de
+  N años (década N=10, lustro N=5, bianual N=2; `Proyecto_Crimes_NY_HEFESTO.md:185-189`,
+  `:663-665`). Ej. 2017 → 2010 / 2015 / 2016. Control pendiente: 1993 → 1990 / 1990 / 1992.
+
+### Observaciones críticas del diseño (para defender con honestidad en entrevista)
+1. **Medidas repetidas ×3:** el `CROSS JOIN` con `dim_categoria` (`Proyecto_Crimes_NY_HEFESTO.md:886`)
+   copia `total_violentos`/`total_propiedad` en las 3 filas; solo `total_delitos` cambia por
+   categoría (`:840-845`). Sumar sin filtrar `category_id` triplica. Se retoma en M4.
+2. **`time_id` = año** (`creacion_tablas_crimes_ny.sql:22`), a diferencia del resto que usan
+   autoincremental. Justificación no está en el repo.
+3. **`trimestre`/`semestre` son vestigiales:** el informe los condicionaba a "si se tiene dato de
+   mes" (`Proyecto_Crimes_NY_HEFESTO.md:188-189`), la fuente es anual (`:34`). El informe usa
+   `CEIL(Year/3)` (`:666`) y el ETL `((year-min)//3)+1` (`etl_crimes_ny_mysql.py:209-210`):
+   dos fórmulas distintas, ninguna es un trimestre real, y ninguna vista las usa. No defenderlas
+   como análisis válido; en M8: eliminarlas o dejarlas NULL hasta tener fuente mensual
+   (con mes serían `CEIL(mes/3)` y `CEIL(mes/6)`). Quién las incluyó y por qué: no está en el
+   repo, lo respondo yo.
+4. **Indicador 4 (ratio) e Indicador 5 (tasa %) son redundantes:** `tasa = ratio × 100`
+   (`Proyecto_Crimes_NY_HEFESTO.md:118-126`, columnas en `creacion_tablas_crimes_ny.sql:138-139`).
+   Grep sobre las vistas: `tasa_*_pct` se usa en varias (líneas 103-104, 133-134, 214-215, 248,
+   276-277, 301 de `vistas_crimes_ny.sql`); `ratio_violencia` solo en la línea 213, junto a
+   `tasa_violentos_pct` en la 214 (mismo dato en dos escalas).
+5. **Promedio de promedios:** las vistas con `AVG(f.tasa_*_pct)` pesan igual a una agencia de 5
+   delitos y a una de 50.000. `v_kpi_globales` (`vistas_crimes_ny.sql:35-45`) en cambio recalcula
+   la tasa desde `SUM/SUM`, que es lo correcto. Inconsistencia de método entre vistas; a retomar
+   en M5 (vistas) y M8 (qué haría distinto). Pendiente: medir cuánto difieren los números.
+
+### Pendiente de responder (preguntas de entrevista M2)
+1. Grano de `fact_crimes_ny` en una frase y por qué se define antes que las medidas.
+2. Por qué `region_type` vive dentro de `dim_geografia` y no en una `dim_region` (estrella vs. 3NF).
+3. Qué pasa si sumo `total_violentos` sobre toda la fact sin filtrar `category_id` y por qué.
+4. Ventaja y riesgo de usar el año como PK de `dim_tiempo` frente a un autoincremental.
+5. Para qué sirven `trimestre`/`semestre` y qué responder si preguntan por qué están.
+
+M2 no se marca completado hasta responder estas 5 con respuestas bien formuladas.
