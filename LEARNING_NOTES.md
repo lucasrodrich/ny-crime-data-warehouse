@@ -7,8 +7,8 @@ corrige, y solo avanza al siguiente módulo cuando las respuestas están bien fo
 ## Estado
 
 - Mapa del repo: hecho y confirmado.
-- Módulo actual: M2 — Modelado dimensional (teoría y lectura de código dada; faltan responder
-  las 5 preguntas de entrevista, ver sección "M2 — en curso" más abajo).
+- Módulo actual: M2 — Modelado dimensional (Q1 aprobada; faltan Q2-Q5 y el control de
+  1993, ver sección "M2 — en curso" más abajo).
 
 ## Módulos completados
 
@@ -114,8 +114,25 @@ proyecto (la fuente es un CSV abierto del NYS DCJS).
    la tasa desde `SUM/SUM`, que es lo correcto. Inconsistencia de método entre vistas; a retomar
    en M5 (vistas) y M8 (qué haría distinto). Pendiente: medir cuánto difieren los números.
 
+### Respondidas (M2)
+1. **Grano — aprobada con corrección (3 intentos).** Error: confundir grano con granularidad
+   temporal (década/lustro son atributos de `dim_tiempo`, no el grano de la fact) y con "rango
+   numérico". Versión final: una fila de la fact es la combinación única de año, condado, agencia
+   y categoría; se define primero porque de él dependen qué medidas son válidas y aditivas
+   (ej. `total_violentos` vive a grano {año, condado, agencia} y se copia ×3).
+
+### Aporte propio (defecto del diseño)
+- En la fact, `total_violentos`, `total_propiedad` y los delitos específicos (`murder`, etc.,
+  `Proyecto_Crimes_NY_HEFESTO.md:847-857`) se copian idénticos en las 3 filas por el
+  `CROSS JOIN` (`:886`). En la fila Violento duplican a `total_delitos`; en la fila Propiedad no
+  significan nada. Solo `total_delitos` varía por categoría (`CASE`, `:840-845`). Corrección que
+  propongo: dejar solo `total_delitos` en la fact (o una fact separada a nivel agencia-año).
+- Alternativa evaluada y descartada: una tabla por tipo de delito. La categoría pasaría a vivir
+  en el nombre de la tabla (UNION para comparar, tabla nueva por categoría, sin slicer en
+  Power BI). Con 71.490 filas e índice, el costo de filtrar por `category_id` es despreciable.
+
 ### Pendiente de responder (preguntas de entrevista M2)
-1. Grano de `fact_crimes_ny` en una frase y por qué se define antes que las medidas.
+- Control: 1993 con `FLOOR(Year/N)*N` para N=10, 5, 2.
 2. Por qué `region_type` vive dentro de `dim_geografia` y no en una `dim_region` (estrella vs. 3NF).
 3. Qué pasa si sumo `total_violentos` sobre toda la fact sin filtrar `category_id` y por qué.
 4. Ventaja y riesgo de usar el año como PK de `dim_tiempo` frente a un autoincremental.
